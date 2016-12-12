@@ -11,152 +11,148 @@
 using namespace std;
 
 template <class Type>
-class Array
+class LinearRegression
 {
 private:
-    Type* array;
-    unsigned int size;
-public:
-    Array() {};
-    Array(const int length);
-    int Size() const { return size; };
-    void changeValue(int index, Type newValue);
-    ~Array() { delete[] array; };
-};
-
-template <class Type>
-Array<Type>::Array(const int length)
-{
-    size = length;
-    array = new Type[lengt];
-    for (size_t i = 0; i < size; i++)
-    {
-        a[i] = rand() % 10;
-    }
-}
-
-template <class Type>
-void Array<Type>::changeValue(int index, Type newValue)
-{
-    if (index > size)
-    {
-        cout << "out of range" << endl;
-        return;
-    }
-    a[index] = newValue;
-}
-
-template <class Type>
-class Matrix
-{
-private:
-    Type** matrix;
     int row, col;
+    Type** trainX;
+    Type* trainY;
+    Type* theta;
+    float learnRate;
+    float precision;
 public:
-    //Matrix();
-    Matrix(const int r, const int c);
-    void changeValue(int i, int j, Type newValue);
-    int Row() const { return row; };
-    int Col() const { return col; };
-    ~Matrix();
+    //__host__ __device__ LinearRegression() { trainX = { {} }; trainY = {}; learnRate = 0.0; precision = 0.0; }
+    LinearRegression(vector<vector<Type> > & featureX, vector<Type> & featureY, float convergenceRate, float convergencePrecision);
+    __host__ __device__ int Row() const { return row; };
+    __host__ __device__ int Col() const { return col; };
+    __host__ __device__ Type hypothesis(Type* x);
+    __host__ __device__ Type costFunction();
+    __host__ __device__ Type partialDerivation(int index);
+    __host__ __device__ void updateTheta();
+    __host__ __device__ void train();
+    ~LinearRegression();
 };
 
-template <class Type>
-Matrix<Type>::Matrix(const int r, const int c)
+template<class Type>
+LinearRegression<Type>::LinearRegression(vector<vector<Type> > & featureX, vector<Type> & featureY, float convergenceRate, float convergencePrecision)
 {
-    row = r, col = c;
-    matrix = new Type *[col];
+    row = featureX.size(); col = featureX[0].size();
+
+    // initialize trainX
+    trainX = new Type*[col];
     for (size_t i = 0; i < col; i++)
     {
-        matrix[i] = new Type[row];
+        trainX[i] = new Type[row];
     }
-
     for (size_t i = 0; i < row; i++)
     {
         for (size_t j = 0; j < col; j++)
         {
-            matrix[i][j] = rand() % 10;
+            trainX[i][j] = featureX[i][j];
         }
     }
-}
 
-template <class Type>
-void Matrix<Type>::changeValue(int i, int j, Type newValue)
-{
-    if (i > row || j > col)
+    trainY = new Type[row];
+    for (size_t i = 0; i < row; i++)
     {
-        cout << "out of range" << endl;
-        return;
+        trainY[i] = featureY[i];
     }
-    matrix[i][j] = newValue;
-}
 
-template <class Type>
-Matrix<Type>::~Matrix()
-{
+    theta = new Type[col];
     for (size_t i = 0; i < col; i++)
     {
-        delete[] matrix[i];
+        theta[i] = (Type)0;
     }
-    delete[] matrix;
-}
-
-template <class Type>
-class LinearRegression
-{
-private:
-    vector<vector<Type> > trainX;
-    vector<Type> trainY;
-    Type learnRate;
-    Type precision;
-public:
-    LinearRegression() { trainX = { {} }; trainY = {}; learnRate = (Type)0; precision = (Type)0; }
-    LinearRegression(vector<vector<Type> > & featureX, vector<Type> & featureY, Type convergenceRate, Type convergencePrecision);
-    __host__ __device__ Type hypothesis();
-    __host__ __device__ Type costFunction();
-    __host__ __device__ Type partialDerivation();
-    __host__ __device__ void train();
-    ~LinearRegression() {};
-};
-
-template<class Type>
-LinearRegression<Type>::LinearRegression(vector<vector<Type> > & featureX, vector<Type> & featureY, Type convergenceRate, Type convergencePrecision)
-{
-    trainX = featureX;
-    trainY = featureY;
+    
     learnRate = convergenceRate;
     precision = convergencePrecision;
 }
 
 template <class Type>
-__host__ __device__ Type LinearRegression<Type>::hypothesis()
+__host__ __device__ Type LinearRegression<Type>::hypothesis(Type* x)
 {
-
+    Type hypo = 0;
+    for (size_t i = 0; i < col; i++)
+    {
+        hypo += x[i] * theta[i];
+    }
+    return hypo;
 }
 
 template <class Type>
 __host__ __device__ Type LinearRegression<Type>::costFunction()
 {
+    Type cost = 0;
+    for (size_t i = 0; i < row; i++)
+    {
+        Type t = hypothesis(trainX[i]) - trainY[i];
+        cost += powf(t, 2);
+    }
+    return 0.5*cost / row;
+}
 
+template <class Type>
+__host__ __device__ Type LinearRegression<Type>::partialDerivation(int index)
+{
+    Type partial = 0;
+    for (size_t i = 0; i < row; i++)
+    {
+        Type t = hypothesis(trainX[i]) - trainY[i];
+        partial += t*trainX[i][index];
+    }
+    return partial / row;
+}
+
+template <class Type>
+__host__ __device__ void LinearRegression<Type>::updateTheta()
+{
+    for (size_t i = 0; i < col; i++)
+    {
+        theta[i] -= learnRate*partialDerivation(i);
+    }
+}
+
+template <class Type>
+__host__ __device__ void LinearRegression<Type>::train()
+{
+    Type lastCostValue = costFunction();
+    int epoch = 0;
+    for (;;)
+    {
+        epoch += 1;
+        // update theta
+        updateTheta();
+        if (fabsf(costFunction() - lastCostValue) <= precision)break;
+        else lastCostValue = costFunction();
+    }
+    printf("%f, %f\n", theta[0], theta[1]);
+}
+
+template <class Type>
+__host__ __device__ LinearRegression<Type>::~LinearRegression()
+{
+    // delete trainX
+    for (size_t i = 0; i < row; i++)
+    {
+        delete[] trainX[i];
+    }
+    delete[] trainX;
+    // deelte trainY
+    delete[] trainY;
+    // delete theta
+    delete[] theta;
 }
 
 int main()
 {
-    const int N = 3;
-    vector<int> k = { 1,2,4 };
-    thrust::host_vector<int> h_m = k;
-    thrust::host_vector<int> h_n = k;
+    vector<vector<float> > x = { {1,1},{1,2},{1,3} };
+    vector<float> y = { 6,10,14 };
+    float lr = 0.3;
+    float error = 1e-4;
 
-    thrust::device_vector<int> d_m = h_m;
-    thrust::device_vector<int> d_n = h_n; 
-    thrust::device_vector<int> d_c;
+    LinearRegression<float> ln(x, y, lr, error);
+    ln.train();
 
-    int f[N] = { h_m.data };
-
-
-    cout << f[0] << endl;
-    cout << f[1] << endl;
-    cout << f[2] << endl;
     system("pause");
     return 0;
 }
