@@ -18,7 +18,7 @@ def linear_regression(x, y, learn_rate=0.03, convergence=1e-4):
     for i in range(len(y)):
         X.append(tf.Variable([x[i]], dtype=tf.float32))
 
-    y = tf.Variable(y, dtype=tf.float32)
+    Y = tf.Variable([y], dtype=tf.float32)
 
     w = tf.Variable([[.0 for i in range(size)]], dtype = tf.float32)
     w = tf.transpose(w)
@@ -27,11 +27,12 @@ def linear_regression(x, y, learn_rate=0.03, convergence=1e-4):
     x_holder = tf.placeholder(tf.float32)
     y_holder = tf.placeholder(tf.float32)
 
-    loop = y.get_shape()[0]
+    loop = len(y)
     sum = tf.Variable(0, tf.float32)
     for i in range(loop):
         linear = tf.matmul(w, X[i])
-        sum += tf.square(linear - y[i])
+        print(linear, Y[i])
+        sum += tf.square(linear - Y[i])
 
     loss = tf.reduce_sum(0.5*sum)
 
